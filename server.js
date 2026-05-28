@@ -20,7 +20,6 @@ app.post("/chat", async (req, res) => {
 try {
 const { message } = req.body;
 
-```
     const response = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
@@ -28,8 +27,7 @@ const { message } = req.body;
             messages: [
                 {
                     role: "system",
-                    content:
-                        "You are MineGPT, an advanced Minecraft AI assistant."
+                    content: "You are MineGPT, an advanced Minecraft AI assistant."
                 },
                 {
                     role: "user",
@@ -46,8 +44,7 @@ const { message } = req.body;
     );
 
     res.json({
-        response:
-            response.data.choices[0].message.content
+        response: response.data.choices[0].message.content
     });
 
 } catch (error) {
@@ -57,7 +54,6 @@ const { message } = req.body;
         error: "AI request failed"
     });
 }
-```
 
 });
 
