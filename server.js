@@ -15,6 +15,16 @@ res.json({
 status: "MineGPT backend running"
 });
 });
+app.get("/health", (req, res) => {
+    res.status(200).send("OK");
+});
+app.get("/models", (req, res) => {
+    res.json({
+        models: [
+            { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B (Default)" }
+        ]
+    });
+});
 
 app.post("/chat", async (req, res) => {
 try {
