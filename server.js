@@ -14,6 +14,17 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const USAGE_FILE = path.join(__dirname, "usage.json");
 
+const sessions = new Map();
+
+function capHistory(history, limit = 15) {
+    if (history.length <= limit) {
+        return history;
+    }
+    const systemMessage = history[0];
+    const recentMessages = history.slice(history.length - (limit - 1));
+    return [systemMessage, ...recentMessages];
+}
+
 function getUsage(uuid) {
     if (!fs.existsSync(USAGE_FILE)) {
         return 0;
@@ -83,6 +94,14 @@ app.post("/chat", async (req, res) => {
     try {
         const playerUuid = req.header("X-MineGPT-Player-UUID") || "default-player";
         const passcode = req.header("X-MineGPT-Passcode") || "";
+        const { message, messages, sessionId, clear } = req.body;
+
+        const activeSessionId = sessionId || playerUuid;
+
+        if (clear) {
+            sessions.delete(activeSessionId);
+            return res.json({ response: "Session cleared successfully." });
+        }
 
         const isDev = isDevPasscode(passcode);
 
@@ -96,22 +115,32 @@ app.post("/chat", async (req, res) => {
             }
         }
 
-        const { message, messages } = req.body;
         let apiMessages = [];
 
         if (messages && Array.isArray(messages)) {
             apiMessages = messages;
         } else {
-            apiMessages = [
-                {
-                    role: "system",
-                    content: "You are MineGPT, an advanced Minecraft AI assistant."
-                },
-                {
+            // Retrieve or initialize the in-memory session history
+            if (!sessions.has(activeSessionId)) {
+                sessions.set(activeSessionId, [
+                    {
+                        role: "system",
+                        content: "You are MineGPT, an advanced Minecraft AI companion. Be accurate, concise, and helpful."
+                    }
+                ]);
+            }
+
+            const history = sessions.get(activeSessionId);
+            if (message) {
+                history.push({
                     role: "user",
-                    content: message || ""
-                }
-            ];
+                    content: message
+                });
+            }
+
+            const cappedHistory = capHistory(history, 15);
+            sessions.set(activeSessionId, cappedHistory);
+            apiMessages = cappedHistory;
         }
 
         const response = await axios.post(
@@ -128,12 +157,24 @@ app.post("/chat", async (req, res) => {
             }
         );
 
+        const assistantResponse = response.data.choices[0].message.content;
+
+        // If using server-side session history, append assistant response
+        if (!(messages && Array.isArray(messages))) {
+            const history = sessions.get(activeSessionId);
+            history.push({
+                role: "assistant",
+                content: assistantResponse
+            });
+            sessions.set(activeSessionId, capHistory(history, 15));
+        }
+
         if (!isDev && playerUuid !== "default-player") {
             incrementUsage(playerUuid);
         }
 
         res.json({
-            response: response.data.choices[0].message.content
+            response: assistantResponse
         });
 
     } catch (error) {
