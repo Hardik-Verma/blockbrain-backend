@@ -1,2 +1,2 @@
-# minegpt-backend
-MineGPT
+# blockbrain-backend
+BlockBrain

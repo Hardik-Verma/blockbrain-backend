@@ -57,7 +57,7 @@ function incrementUsage(uuid) {
 function isDevPasscode(passcode) {
     if (!passcode) return false;
     const trimmed = passcode.trim();
-    if (trimmed.toUpperCase() === "MINEGPT_DEV_UNLIMITED" || trimmed.toUpperCase() === "DEV_UNLIMITED_2026") {
+    if (trimmed.toUpperCase() === "BLOCKBRAIN_DEV_UNLIMITED" || trimmed.toUpperCase() === "DEV_UNLIMITED_2026") {
         return true;
     }
     // Verify SHA-256 hashes for cryptographic uncrackability
@@ -74,7 +74,7 @@ function isDevPasscode(passcode) {
 
 app.get("/", (req, res) => {
     res.json({
-        status: "MineGPT backend running"
+        status: "BlockBrain backend running"
     });
 });
 
@@ -92,8 +92,8 @@ app.get("/models", (req, res) => {
 
 app.post("/chat", async (req, res) => {
     try {
-        const playerUuid = req.header("X-MineGPT-Player-UUID") || "default-player";
-        const passcode = req.header("X-MineGPT-Passcode") || "";
+        const playerUuid = req.header("X-BlockBrain-Player-UUID") || "default-player";
+        const passcode = req.header("X-BlockBrain-Passcode") || "";
         const { message, messages, sessionId, clear } = req.body;
 
         const activeSessionId = sessionId || playerUuid;
@@ -110,7 +110,7 @@ app.post("/chat", async (req, res) => {
             if (usage >= 3) {
                 return res.status(403).json({
                     code: "FREE_LIMIT_REACHED",
-                    message: "You've used your free MineGPT requests. Please upgrade or configure a Custom API key in Settings."
+                    message: "You've used your free BlockBrain requests. Please upgrade or configure a Custom API key in Settings."
                 });
             }
         }
@@ -125,7 +125,7 @@ app.post("/chat", async (req, res) => {
                 sessions.set(activeSessionId, [
                     {
                         role: "system",
-                        content: "You are MineGPT, an advanced Minecraft AI companion. Be accurate, concise, and helpful."
+                        content: "You are BlockBrain, an advanced Minecraft AI companion. Be accurate, concise, and helpful."
                     }
                 ]);
             }
@@ -186,5 +186,5 @@ app.post("/chat", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`MineGPT backend running on port ${PORT}`);
+    console.log(`BlockBrain backend running on port ${PORT}`);
 });
