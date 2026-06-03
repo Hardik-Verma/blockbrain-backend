@@ -38,8 +38,10 @@ export function createUploadRouter() {
         return res.status(400).json({ code: 'BAD_REQUEST', message: 'No file uploaded' });
       }
 
-      // Return the public URL path
-      const publicUrl = `http://localhost:3000/uploads/avatars/${req.file.filename}`;
+      // Return the public URL path dynamically based on the request host
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.get('host');
+      const publicUrl = `${protocol}://${host}/uploads/avatars/${req.file.filename}`;
       return res.json({ url: publicUrl });
     } catch (err) {
       return res.status(500).json({ code: 'UPLOAD_ERROR', message: err.message });
