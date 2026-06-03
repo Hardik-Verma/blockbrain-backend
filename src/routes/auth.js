@@ -61,7 +61,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
 <body>
   <div class="container">
     <div class="header">
-      <h1 class="logo">BlockBrain</h1>
+      <img src="https://blockbrain.great-site.net/banner.png" alt="BlockBrain Logo" style="max-width: 100%; height: auto; border-radius: 8px;" />
     </div>
     <div class="content">
       <h2 class="title">Authentication Request</h2>
