@@ -102,7 +102,7 @@ export function createChatRouter({ providerService, usageService, authMiddleware
       const messages = buildMessages(body);
       const stream = body.stream !== false;
       const response = await providerService.chat({
-        model: body.model,
+        model: body.model || "llama-3.3-70b-versatile",
         messages,
         maxTokens: body.maxTokens,
         temperature: body.temperature,
