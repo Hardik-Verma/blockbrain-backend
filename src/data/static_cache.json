@@ -1,0 +1,7 @@
+{
+  "crafting table": "To craft a Crafting Table, place 4 Wood Planks in a 2x2 square in your inventory crafting grid.",
+  "furnace": "To craft a Furnace, place 8 Cobblestone in a ring in the crafting table, leaving the center empty.",
+  "torch": "To craft a Torch, place 1 Coal (or Charcoal) directly above 1 Stick in a crafting grid. Yields 4 Torches.",
+  "iron pickaxe": "To craft an Iron Pickaxe, place 3 Iron Ingots in a row across the top of a crafting table, with 2 Sticks vertically in the center below.",
+  "diamond sword": "To craft a Diamond Sword, place 2 Diamonds vertically in the top and center slots of a crafting table, with 1 Stick in the bottom slot."
+}

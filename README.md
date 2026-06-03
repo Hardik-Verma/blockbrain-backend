@@ -1,2 +1,0 @@
-# blockbrain-backend
-BlockBrain

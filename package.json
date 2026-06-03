@@ -1,21 +1,29 @@
 {
-  "name": "blockbrain-backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "blockbrain-cloud",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "BlockBrain Cloud backend — AI chat, auth, settings sync, and analytics dashboard.",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
-    "axios": "^1.16.1",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "nodemon": "^3.1.14",
-    "sqlite3": "^6.0.1"
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.10",
+    "pg": "^8.13.1",
+    "zod": "^3.23.8"
   }
 }
