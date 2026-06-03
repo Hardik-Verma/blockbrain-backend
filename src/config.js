@@ -9,6 +9,7 @@ export async function loadConfig() {
     port: Number(process.env.PORT || 3000),
     databaseUrl: process.env.DATABASE_URL || 'postgresql://localhost:5432/blockbrain',
     jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+    brevoApiKey: process.env.BREVO_API_KEY || '',
     smtpUser: process.env.SMTP_USER || '',
     smtpPass: process.env.SMTP_PASS || '',
     secretKey: process.env.BLOCKBRAIN_SECRET_KEY || '',

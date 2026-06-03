@@ -22,7 +22,7 @@ const verifySchema = z.object({
   code: z.string().length(6),
 });
 
-export function createAuthRouter({ jwtSecret, smtpUser, smtpPass }) {
+export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey }) {
   const router = Router();
   const authMiddleware = createAuthMiddleware(jwtSecret);
   
@@ -41,12 +41,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass }) {
       const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit
       const expiresAt = new Date(Date.now() + 10 * 60000); // 10 mins
 
-      if (transporter) {
-        await transporter.sendMail({
-          from: `"BlockBrain AI" <${smtpUser}>`,
-          to: email,
-          subject: 'Your BlockBrain Login Code',
-          html: `
+      const emailHtml = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -74,17 +69,38 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass }) {
       <div class="code-box">
         <p class="code">${otp}</p>
       </div>
-      <p class="text" style="font-size: 13px;">This code will expire securely in exactly 10 minutes. If you did not request this code, please ignore this email.</p>
+      <p class="text" style="font-size: 13px;">This code will expire in 10 minutes. If you did not request this, you can safely ignore this email.</p>
     </div>
     <div class="footer">
-      &copy; 2026 BlockBrain Systems. Seamless Minecraft Intelligence.
+      &copy; ${new Date().getFullYear()} BlockBrain Cloud. All rights reserved.
     </div>
   </div>
 </body>
 </html>
-          `
+      `;
+
+      if (brevoApiKey) {
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'api-key': brevoApiKey,
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            sender: { email: smtpUser || "noreply@blockbrain.dev", name: "BlockBrain AI" },
+            to: [{ email: email }],
+            subject: 'Your BlockBrain Login Code',
+            htmlContent: emailHtml
+          })
         });
-        console.log(`[AUTH SYSTEM] EMAIL SENT to ${email} via Nodemailer.`);
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error("[AUTH SYSTEM] Brevo API Error:", errText);
+          throw new Error("Failed to send email via Brevo.");
+        }
+        console.log(`[AUTH SYSTEM] EMAIL SENT to ${email} via Brevo API.`);
       } else {
         console.log(`[AUTH SYSTEM] MOCK EMAIL SENT to ${email} -> CODE: ${otp}`);
       }

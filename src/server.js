@@ -71,7 +71,8 @@ app.use('/upload', createUploadRouter());
 app.use('/auth', await createAuthRouter({ 
   jwtSecret: config.jwtSecret,
   smtpUser: config.smtpUser,
-  smtpPass: config.smtpPass
+  smtpPass: config.smtpPass,
+  brevoApiKey: config.brevoApiKey
 }));
 
 // Protected routes (require authentication)
