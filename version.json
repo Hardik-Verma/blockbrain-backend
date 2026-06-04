@@ -1,9 +1,9 @@
 {
-  "latestVersion": "1.0.1",
+  "latestVersion": "1.0.0",
   "downloadUrl": "https://modrinth.com/mod/blockbrain",
   "changelog": [
-    "Improved UI",
-    "Added streaming",
-    "Bug fixes"
+    "Initial launch release",
+    "Real-time AI integration",
+    "Fabric 1.21.1 support"
   ]
 }
