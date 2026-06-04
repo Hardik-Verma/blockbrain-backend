@@ -61,7 +61,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
 <body>
   <div class="container">
     <div class="header">
-      <img src="https://blockbrain.great-site.net/banner.png" alt="BlockBrain Logo" style="max-width: 100%; height: auto; border-radius: 8px;" />
+      <h1 class="logo">BLOCKBRAIN</h1>
     </div>
     <div class="content">
       <h2 class="title">Authentication Request</h2>
@@ -129,7 +129,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
       const { email, code } = verifySchema.parse(req.body);
 
       const result = await pool.query(
-        'SELECT id, email, role, otp_code, otp_expires_at FROM accounts WHERE email = $1',
+        'SELECT id, email, role, otp_code, otp_expires_at, display_name, avatar_url FROM accounts WHERE email = $1',
         [email]
       );
       
@@ -153,6 +153,8 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
           id: row.id,
           email: row.email,
           role: row.role,
+          displayName: row.display_name,
+          avatarUrl: row.avatar_url
         },
       });
     } catch (err) {
