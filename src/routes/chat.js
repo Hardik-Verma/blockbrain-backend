@@ -91,9 +91,8 @@ export function createChatRouter({ providerService, usageService, authMiddleware
       // Check if user is a developer (unlimited access)
       let isDev = false;
       if (req.user?.accountId) {
-        const accountResult = await pool.query('SELECT email FROM accounts WHERE id = $1', [req.user.accountId]);
-        isDev = accountResult.rows.length > 0 && 
-                (accountResult.rows[0].email === 'hardikverma1902@gmail.com' || accountResult.rows[0].email === 'hnv.videos4@gmail.com');
+        // Any user who provides a valid token/UUID gets developer access for now
+        isDev = true;
       }
 
       let freeTier = { allowed: true, remaining: 999 };
@@ -163,7 +162,7 @@ function buildMessages(body, prompt) {
 
   const messages = [{ role: "system", content: systemPrompt }];
   for (const item of body.messages || []) {
-    messages.push({ role: "user", content: item.text });
+    messages.push({ role: item.role || "user", content: item.text || item.content || "" });
   }
   messages.push({ role: "user", content: prompt });
   return messages;
