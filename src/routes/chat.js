@@ -20,9 +20,23 @@ export function createChatRouter({ providerService, usageService, authMiddleware
   const router = express.Router();
 
   // Try to authenticate but don't block unauthenticated requests
-  const optionalAuth = (req, _res, next) => {
+  const optionalAuth = async (req, _res, next) => {
     const token = req.cookies?.bb_token || req.headers['x-blockbrain-passcode'];
     if (token) {
+      // Check if the token is an Account UUID (Developer API Key)
+      if (token.length === 36) {
+        try {
+          const result = await pool.query('SELECT id, role FROM accounts WHERE id = $1', [token]);
+          if (result.rows.length > 0) {
+            req.user = { accountId: result.rows[0].id, role: result.rows[0].role };
+            return next();
+          }
+        } catch {
+          // Ignore and fall back to JWT
+        }
+      }
+
+      // Try JWT validation
       try {
         const decoded = verifyToken(token, process.env.JWT_SECRET || 'dev-secret-change-in-production');
         req.user = { accountId: decoded.accountId, role: decoded.role };
