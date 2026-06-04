@@ -13,6 +13,7 @@ const staticCache = JSON.parse(fs.readFileSync(staticCachePath, 'utf8'));
 
 const chatSchema = z.object({
   message: z.string().min(1).max(12000),
+  prompt: z.string().optional(),
   messages: z.array(z.any()).max(50).optional(),
 });
 
@@ -107,7 +108,7 @@ export function createChatRouter({ providerService, usageService, authMiddleware
       }
 
       const messages = buildMessages(body, prompt);
-      const stream = false; // Mod does not support SSE parsing
+      const stream = body.stream === true;
       const response = await providerService.chat({
         model: body.model || "llama-3.3-70b-versatile",
         messages,
@@ -122,16 +123,16 @@ export function createChatRouter({ providerService, usageService, authMiddleware
         res.setHeader("Cache-Control", "no-cache, no-transform");
         res.setHeader("Connection", "keep-alive");
         await relayStream(response, res);
-        logRequest(clientId, req.user?.accountId, prompt, startTime, 'success', body.minecraftContext);
+        logRequest(clientId, req.user?.accountId, prompt, startTime, 'success', body.minecraftContext, null, body.prompt);
         return;
       }
 
       const json = await response.json();
       const content = extractContent(json);
-      logRequest(clientId, req.user?.accountId, prompt, startTime, 'success', body.minecraftContext);
+      logRequest(clientId, req.user?.accountId, prompt, startTime, 'success', body.minecraftContext, null, body.prompt);
       return res.json({ response: content, remainingFreeRequests: freeTier.remaining });
     } catch (error) {
-      logRequest(req.headers['x-blockbrain-player-uuid'] || 'unknown', req.user?.accountId, req.body?.message, startTime, 'error', null, error.message);
+      logRequest(req.headers['x-blockbrain-player-uuid'] || 'unknown', req.user?.accountId, req.body?.message, startTime, 'error', null, error.message, req.body?.prompt);
       next(error);
     }
   });
@@ -139,9 +140,9 @@ export function createChatRouter({ providerService, usageService, authMiddleware
   return router;
 }
 
-function logRequest(clientId, accountId, prompt, startTime, status, context, errorMessage) {
+function logRequest(clientId, accountId, prompt, startTime, status, context, errorMessage, explicitPrompt) {
   const latencyMs = Date.now() - startTime;
-  const promptPreview = (prompt || '').substring(0, 200);
+  const promptPreview = (explicitPrompt || prompt || '').substring(0, 200);
   pool.query(
     `INSERT INTO request_logs(client_id, account_id, prompt_preview, latency_ms, status, error_message, context_snapshot)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
