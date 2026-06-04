@@ -53,7 +53,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(compression());
-app.use(express.json({ limit: '32kb' }));
+app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 app.use(createApiLimiter());
 

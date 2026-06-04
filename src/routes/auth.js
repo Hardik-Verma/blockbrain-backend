@@ -192,7 +192,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
 
   const profileSchema = z.object({
     displayName: z.string().min(1).max(64).optional(),
-    avatarUrl: z.string().url().max(1024).optional().or(z.literal('')),
+    avatarUrl: z.string().max(1048576).optional().or(z.literal('')),
   });
 
   // PUT /me
