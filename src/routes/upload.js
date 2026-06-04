@@ -6,20 +6,11 @@ import crypto from 'crypto';
 export function createUploadRouter() {
   const router = Router();
 
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, 'uploads/avatars');
-    },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = crypto.randomBytes(8).toString('hex');
-      const ext = path.extname(file.originalname);
-      cb(null, `avatar_${uniqueSuffix}${ext}`);
-    }
-  });
+  const storage = multer.memoryStorage();
 
   const upload = multer({
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    limits: { fileSize: 500 * 1024 }, // 500KB limit for Base64 efficiency
     fileFilter: (req, file, cb) => {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
@@ -38,10 +29,10 @@ export function createUploadRouter() {
         return res.status(400).json({ code: 'BAD_REQUEST', message: 'No file uploaded' });
       }
 
-      // Return the public URL path dynamically based on the request host
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-      const host = req.get('host');
-      const publicUrl = `${protocol}://${host}/uploads/avatars/${req.file.filename}`;
+      // Convert image buffer to base64 so it can be stored directly in the database
+      // This prevents image loss when the Render backend goes to sleep.
+      const base64 = req.file.buffer.toString('base64');
+      const publicUrl = `data:${req.file.mimetype};base64,${base64}`;
       return res.json({ url: publicUrl });
     } catch (err) {
       return res.status(500).json({ code: 'UPLOAD_ERROR', message: err.message });
