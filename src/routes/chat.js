@@ -12,19 +12,8 @@ const staticCachePath = path.join(__dirname, '../data/static_cache.json');
 const staticCache = JSON.parse(fs.readFileSync(staticCachePath, 'utf8'));
 
 const chatSchema = z.object({
-  clientId: z.string().min(16),
-  prompt: z.string().min(1).max(12000),
-  model: z.string().min(1).max(200).optional(),
-  maxTokens: z.number().int().min(32).max(4096).optional(),
-  temperature: z.number().min(0).max(2).optional(),
-  stream: z.boolean().optional(),
-  messages: z.array(z.object({ text: z.string().min(1).max(12000) })).max(50).optional(),
-  minecraftContext: z.object({
-    minecraftVersion: z.string().optional(),
-    installedMods: z.string().optional(),
-    dimension: z.string().optional(),
-    gameMode: z.string().optional(),
-  }).optional(),
+  message: z.string().min(1).max(12000),
+  messages: z.array(z.any()).max(50).optional(),
 });
 
 export function createChatRouter({ providerService, usageService, authMiddleware }) {
@@ -32,13 +21,13 @@ export function createChatRouter({ providerService, usageService, authMiddleware
 
   // Try to authenticate but don't block unauthenticated requests
   const optionalAuth = (req, _res, next) => {
-    const token = req.cookies?.bb_token;
+    const token = req.cookies?.bb_token || req.headers['x-blockbrain-passcode'];
     if (token) {
       try {
         const decoded = verifyToken(token, process.env.JWT_SECRET || 'dev-secret-change-in-production');
         req.user = { accountId: decoded.accountId, role: decoded.role };
       } catch {
-        // Invalid token — proceed as unauthenticated
+        // Invalid token - proceed as unauthenticated
       }
     }
     next();
@@ -48,13 +37,15 @@ export function createChatRouter({ providerService, usageService, authMiddleware
     const startTime = Date.now();
     try {
       const body = chatSchema.parse(req.body);
+      const clientId = req.headers['x-blockbrain-player-uuid'] || 'unknown';
+      const prompt = body.message;
 
-      if (body.prompt.trim().toLowerCase().includes("blockbrain cloud is loading")) {
+      if (prompt.trim().toLowerCase().includes("blockbrain cloud is loading")) {
         return res.json({ response: "", remainingFreeRequests: 999 });
       }
 
       // Intent Classification Layer
-      const intentMatch = body.prompt.match(/(?:how to craft|recipe for|what is the durability of)\s+(.*)/i);
+      const intentMatch = prompt.match(/(?:how to craft|recipe for|what is the durability of)\s+(.*)/i);
       if (intentMatch) {
         const item = intentMatch[1].trim().toLowerCase();
         for (const [key, value] of Object.entries(staticCache)) {
@@ -73,10 +64,10 @@ export function createChatRouter({ providerService, usageService, authMiddleware
               }
               res.write("data: [DONE]\n\n");
               res.end();
-              logRequest(body.clientId, req.user?.accountId, body.prompt, startTime, 'success (cache)', body.minecraftContext);
+              logRequest(clientId, req.user?.accountId, prompt, startTime, 'success (cache)', body.minecraftContext);
               return;
             } else {
-              logRequest(body.clientId, req.user?.accountId, body.prompt, startTime, 'success (cache)', body.minecraftContext);
+              logRequest(clientId, req.user?.accountId, prompt, startTime, 'success (cache)', body.minecraftContext);
               return res.json({ response: value, remainingFreeRequests: 999 });
             }
           }
@@ -84,13 +75,13 @@ export function createChatRouter({ providerService, usageService, authMiddleware
       }
 
       // Check if user is a developer (unlimited access)
-      const accountResult = await pool.query('SELECT email FROM accounts WHERE minecraft_uuid = $1', [body.clientId]);
+      const accountResult = await pool.query('SELECT email FROM accounts WHERE minecraft_uuid = $1', [clientId]);
       const isDev = accountResult.rows.length > 0 && 
                    (accountResult.rows[0].email === 'hardikverma1902@gmail.com' || accountResult.rows[0].email === 'hnv.videos4@gmail.com');
 
       let freeTier = { allowed: true, remaining: 999 };
       if (!isDev) {
-        freeTier = await usageService.consumeIfAvailable(body.clientId, 3);
+        freeTier = await usageService.consumeIfAvailable(clientId, 3);
         if (!freeTier.allowed) {
           return res.status(402).json({
             code: "FREE_LIMIT_REACHED",
@@ -99,7 +90,7 @@ export function createChatRouter({ providerService, usageService, authMiddleware
         }
       }
 
-      const messages = buildMessages(body);
+      const messages = buildMessages(body, prompt);
       const stream = body.stream !== false;
       const response = await providerService.chat({
         model: body.model || "llama-3.3-70b-versatile",
@@ -115,16 +106,16 @@ export function createChatRouter({ providerService, usageService, authMiddleware
         res.setHeader("Cache-Control", "no-cache, no-transform");
         res.setHeader("Connection", "keep-alive");
         await relayStream(response, res);
-        logRequest(body.clientId, req.user?.accountId, body.prompt, startTime, 'success', body.minecraftContext);
+        logRequest(clientId, req.user?.accountId, prompt, startTime, 'success', body.minecraftContext);
         return;
       }
 
       const json = await response.json();
       const content = extractContent(json);
-      logRequest(body.clientId, req.user?.accountId, body.prompt, startTime, 'success', body.minecraftContext);
+      logRequest(clientId, req.user?.accountId, prompt, startTime, 'success', body.minecraftContext);
       return res.json({ response: content, remainingFreeRequests: freeTier.remaining });
     } catch (error) {
-      logRequest(req.body?.clientId, req.user?.accountId, req.body?.prompt, startTime, 'error', null, error.message);
+      logRequest(req.headers['x-blockbrain-player-uuid'] || 'unknown', req.user?.accountId, req.body?.message, startTime, 'error', null, error.message);
       next(error);
     }
   });
@@ -142,7 +133,7 @@ function logRequest(clientId, accountId, prompt, startTime, status, context, err
   ).catch(err => console.error('Failed to log request:', err.message));
 }
 
-function buildMessages(body) {
+function buildMessages(body, prompt) {
   const context = body.minecraftContext || {};
   const systemPrompt = [
     "You are BlockBrain, an advanced Minecraft AI assistant helping players with Minecraft-related questions.",
@@ -157,7 +148,7 @@ function buildMessages(body) {
   for (const item of body.messages || []) {
     messages.push({ role: "user", content: item.text });
   }
-  messages.push({ role: "user", content: body.prompt });
+  messages.push({ role: "user", content: prompt });
   return messages;
 }
 
