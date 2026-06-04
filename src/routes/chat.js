@@ -75,9 +75,12 @@ export function createChatRouter({ providerService, usageService, authMiddleware
       }
 
       // Check if user is a developer (unlimited access)
-      const accountResult = await pool.query('SELECT email FROM accounts WHERE minecraft_uuid = $1', [clientId]);
-      const isDev = accountResult.rows.length > 0 && 
-                   (accountResult.rows[0].email === 'hardikverma1902@gmail.com' || accountResult.rows[0].email === 'hnv.videos4@gmail.com');
+      let isDev = false;
+      if (req.user?.accountId) {
+        const accountResult = await pool.query('SELECT email FROM accounts WHERE id = $1', [req.user.accountId]);
+        isDev = accountResult.rows.length > 0 && 
+                (accountResult.rows[0].email === 'hardikverma1902@gmail.com' || accountResult.rows[0].email === 'hnv.videos4@gmail.com');
+      }
 
       let freeTier = { allowed: true, remaining: 999 };
       if (!isDev) {
@@ -91,7 +94,7 @@ export function createChatRouter({ providerService, usageService, authMiddleware
       }
 
       const messages = buildMessages(body, prompt);
-      const stream = body.stream !== false;
+      const stream = false; // Mod does not support SSE parsing
       const response = await providerService.chat({
         model: body.model || "llama-3.3-70b-versatile",
         messages,
