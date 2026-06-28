@@ -39,23 +39,47 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
   }) : null;
 
   const getHtmlTemplate = (title, code, message) => `
-    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0a; color: #ffffff; padding: 40px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
-      <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="background: linear-gradient(to right, #ffffff, #888888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 28px; font-weight: 800; margin: 0;">BlockBrain</h1>
-      </div>
-      <div style="background-color: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 30px; text-align: center;">
-        <h2 style="font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 15px; color: #ffffff;">${title}</h2>
-        <p style="color: #a3a3a3; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">${message}</p>
-        <div style="background-color: rgba(0,0,0,0.5); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 15px; margin-bottom: 10px;">
-          <span style="font-family: monospace; font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3b82f6;">${code}</span>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 40px 20px; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+      <div style="max-width: 500px; margin: 0 auto; background-color: #09090b; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+        
+        <!-- Header -->
+        <div style="padding: 30px 40px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 800; letter-spacing: 2px;">BLOCKBRAIN</h1>
         </div>
-        <p style="color: #666666; font-size: 12px; margin-top: 20px;">This code will expire in 10 minutes.</p>
+
+        <!-- Body -->
+        <div style="padding: 40px;">
+          <h2 style="margin: 0 0 15px 0; color: #ffffff; font-size: 18px; font-weight: 600; text-align: center;">${title}</h2>
+          <p style="margin: 0 0 30px 0; color: #a1a1aa; font-size: 14px; line-height: 1.6; text-align: center;">
+            ${message}
+          </p>
+          
+          <!-- Code Box -->
+          <div style="background-color: #18181b; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 25px; text-align: center; margin-bottom: 30px;">
+            <span style="font-family: monospace; font-size: 28px; letter-spacing: 12px; font-weight: 600; color: #ffffff; margin-left: 12px;">${code}</span>
+          </div>
+          
+          <p style="margin: 0; color: #71717a; font-size: 12px; text-align: center; line-height: 1.5;">
+            This code will expire securely in exactly 10 minutes. If you did not request this code, please ignore this email.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding: 20px 40px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05);">
+          <p style="margin: 0; color: #52525b; font-size: 11px;">
+            &copy; ${new Date().getFullYear()} BlockBrain Systems. Seamless Minecraft Intelligence.
+          </p>
+        </div>
+
       </div>
-      <div style="text-align: center; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
-        <p style="color: #444444; font-size: 12px; margin: 0;">If you didn't request this email, you can safely ignore it.</p>
-        <p style="color: #444444; font-size: 12px; margin: 5px 0 0 0;">&copy; ${new Date().getFullYear()} BlockBrain. All rights reserved.</p>
-      </div>
-    </div>
+    </body>
+    </html>
   `;
 
   // Helper function to send email bypassing SMTP blocks by using HTTP API if possible
