@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import { pool } from '../database/index.js';
-import { generateToken } from '../auth/auth.js';
+import { generateToken, verifyToken } from '../auth/auth.js';
 import { createAuthMiddleware } from '../auth/authMiddleware.js';
 
 const COOKIE_OPTIONS = {
@@ -41,25 +43,93 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
     try {
       const { email, password, displayName } = registerSchema.parse(req.body);
 
-      const existing = await pool.query('SELECT id FROM accounts WHERE email = $1', [email]);
+      const existing = await pool.query('SELECT id, is_verified FROM accounts WHERE email = $1', [email]);
       if (existing.rows.length > 0) {
-        return res.status(409).json({ code: 'EMAIL_IN_USE', message: 'Email is already registered.' });
+        if (existing.rows[0].is_verified) {
+          return res.status(409).json({ code: 'EMAIL_IN_USE', message: 'Email is already registered.' });
+        }
+        // If not verified, we can just resend OTP or overwrite. Handled in /resend-otp.
+        return res.status(409).json({ code: 'EMAIL_PENDING', message: 'Account exists but is not verified. Please verify your OTP.' });
       }
 
       const salt = await bcrypt.genSalt(10);
       const hash = await bcrypt.hash(password, salt);
 
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const otpHash = await bcrypt.hash(otp, 5); // Fast hash
+      const expiresAt = new Date(Date.now() + 10 * 60000); // 10 minutes
+
       const result = await pool.query(
-        `INSERT INTO accounts (email, password_hash, display_name)
-         VALUES ($1, $2, $3) RETURNING id, email, role, display_name, avatar_url`,
-        [email, hash, displayName || null]
+        `INSERT INTO accounts (email, password_hash, display_name, otp_code, otp_expires_at, is_verified)
+         VALUES ($1, $2, $3, $4, $5, FALSE) RETURNING id, email`,
+        [email, hash, displayName || null, otpHash, expiresAt]
       );
 
-      const row = result.rows[0];
-      const token = generateToken({ accountId: row.id, role: row.role }, jwtSecret);
-      res.cookie('bb_token', token, COOKIE_OPTIONS);
+      if (transporter) {
+        try {
+          await transporter.sendMail({
+            from: smtpUser,
+            to: email,
+            subject: 'BlockBrain Verification Code',
+            text: `Your BlockBrain verification code is: ${otp}. It expires in 10 minutes.`,
+          });
+        } catch (e) {
+          console.error('Failed to send OTP email:', e);
+        }
+      }
 
       return res.status(201).json({
+        code: 'OTP_SENT',
+        message: 'Registration pending. Please verify the OTP sent to your email.',
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ code: 'VALIDATION_ERROR', errors: err.errors });
+      }
+      next(err);
+    }
+  });
+
+  const verifySchema = z.object({
+    email: z.string().email(),
+    otp: z.string().length(6),
+  });
+
+  // POST /verify-otp
+  router.post('/verify-otp', async (req, res, next) => {
+    try {
+      const { email, otp } = verifySchema.parse(req.body);
+
+      const result = await pool.query(
+        'SELECT id, email, role, display_name, avatar_url, otp_code, otp_expires_at FROM accounts WHERE email = $1',
+        [email]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(400).json({ code: 'INVALID_OTP', message: 'Invalid or expired OTP.' });
+      }
+
+      const row = result.rows[0];
+
+      if (!row.otp_code || !row.otp_expires_at || new Date() > new Date(row.otp_expires_at)) {
+        return res.status(410).json({ code: 'OTP_EXPIRED', message: 'OTP has expired.' });
+      }
+
+      const isMatch = await bcrypt.compare(otp, row.otp_code);
+      if (!isMatch) {
+        return res.status(400).json({ code: 'INVALID_OTP', message: 'Invalid OTP.' });
+      }
+
+      // Activate account
+      await pool.query(
+        'UPDATE accounts SET is_verified = TRUE, otp_code = NULL, otp_expires_at = NULL WHERE id = $1',
+        [row.id]
+      );
+
+      const token = generateToken({ accountId: row.id, role: row.role, email: row.email }, jwtSecret);
+      res.cookie('bb_token', token, COOKIE_OPTIONS);
+
+      return res.json({
         user: {
           id: row.id,
           email: row.email,
@@ -82,7 +152,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
       const { email, password } = loginSchema.parse(req.body);
 
       const result = await pool.query(
-        'SELECT id, email, role, password_hash, display_name, avatar_url FROM accounts WHERE email = $1',
+        'SELECT id, email, role, password_hash, display_name, avatar_url, is_verified FROM accounts WHERE email = $1',
         [email]
       );
       
@@ -95,12 +165,16 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
         return res.status(401).json({ code: 'INVALID_CREDENTIALS', message: 'Account requires password reset or was created via OTP.' });
       }
 
+      if (!row.is_verified) {
+        return res.status(403).json({ code: 'NOT_VERIFIED', message: 'Account is not verified. Please verify your OTP.' });
+      }
+
       const isMatch = await bcrypt.compare(password, row.password_hash);
       if (!isMatch) {
         return res.status(401).json({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' });
       }
 
-      const token = generateToken({ accountId: row.id, role: row.role }, jwtSecret);
+      const token = generateToken({ accountId: row.id, role: row.role, email: row.email }, jwtSecret);
       res.cookie('bb_token', token, COOKIE_OPTIONS);
 
       return res.json({

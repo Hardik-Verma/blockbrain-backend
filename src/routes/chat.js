@@ -11,6 +11,14 @@ const __dirname = path.dirname(__filename);
 const staticCachePath = path.join(__dirname, '../data/static_cache.json');
 const staticCache = JSON.parse(fs.readFileSync(staticCachePath, 'utf8'));
 
+const ADMIN_EMAILS = [
+  'hardikverma0212@hotmail.com',
+  'hardikverma1902@gmail.com',
+  'hnv.videos4@gmail.com',
+  'threatlynx.support@gmail.com',
+  'blockbrain.noreply@gmail.com'
+];
+
 const chatSchema = z.object({
   message: z.string().min(1).max(12000),
   prompt: z.string().optional(),
@@ -24,23 +32,10 @@ export function createChatRouter({ providerService, usageService, authMiddleware
   const optionalAuth = async (req, _res, next) => {
     const token = req.cookies?.bb_token || req.headers['x-blockbrain-passcode'];
     if (token) {
-      // Check if the token is an Account UUID (Developer API Key)
-      if (token.length === 36) {
-        try {
-          const result = await pool.query('SELECT id, role FROM accounts WHERE id = $1', [token]);
-          if (result.rows.length > 0) {
-            req.user = { accountId: result.rows[0].id, role: result.rows[0].role };
-            return next();
-          }
-        } catch {
-          // Ignore and fall back to JWT
-        }
-      }
-
       // Try JWT validation
       try {
         const decoded = verifyToken(token, process.env.JWT_SECRET || 'dev-secret-change-in-production');
-        req.user = { accountId: decoded.accountId, role: decoded.role };
+        req.user = { accountId: decoded.accountId, role: decoded.role, email: decoded.email };
       } catch {
         // Invalid token - proceed as unauthenticated
       }
@@ -89,10 +84,9 @@ export function createChatRouter({ providerService, usageService, authMiddleware
         }
       }
 
-      // Check if user is a developer (unlimited access)
+      // Check if user is an authorized admin (unlimited access)
       let isDev = false;
-      if (req.user?.accountId) {
-        // Any user who provides a valid token/UUID gets developer access for now
+      if (req.user?.accountId && req.user?.email && ADMIN_EMAILS.includes(req.user.email)) {
         isDev = true;
       }
 

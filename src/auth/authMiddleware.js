@@ -13,7 +13,7 @@ export function createAuthMiddleware(jwtSecret) {
 
     try {
       const decoded = verifyToken(token, jwtSecret);
-      req.user = { accountId: decoded.accountId, role: decoded.role };
+      req.user = { accountId: decoded.accountId, role: decoded.role, email: decoded.email };
       next();
     } catch (err) {
       return res.status(401).json({
