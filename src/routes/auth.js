@@ -146,6 +146,114 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
     }
   });
 
+  const forgotPasswordSchema = z.object({
+    email: z.string().email(),
+  });
+
+  // POST /forgot-password
+  router.post('/forgot-password', async (req, res, next) => {
+    try {
+      const { email } = forgotPasswordSchema.parse(req.body);
+
+      const existing = await pool.query('SELECT id, is_verified FROM accounts WHERE email = $1', [email]);
+      if (existing.rows.length === 0) {
+        // Return 200 to prevent email enumeration, but do nothing
+        return res.status(200).json({ code: 'OTP_SENT', message: 'If an account exists, an OTP has been sent.' });
+      }
+
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const otpHash = await bcrypt.hash(otp, 5);
+      const expiresAt = new Date(Date.now() + 10 * 60000);
+
+      await pool.query(
+        'UPDATE accounts SET otp_code = $1, otp_expires_at = $2 WHERE email = $3',
+        [otpHash, expiresAt, email]
+      );
+
+      if (transporter) {
+        try {
+          await transporter.sendMail({
+            from: smtpUser,
+            to: email,
+            subject: 'BlockBrain Password Reset',
+            text: `Your BlockBrain password reset code is: ${otp}. It expires in 10 minutes. If you did not request this, please ignore this email.`,
+          });
+        } catch (e) {
+          console.error('Failed to send forgot password email:', e);
+        }
+      }
+
+      return res.status(200).json({
+        code: 'OTP_SENT',
+        message: 'If an account exists, an OTP has been sent.',
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ code: 'VALIDATION_ERROR', errors: err.errors });
+      }
+      next(err);
+    }
+  });
+
+  const resetPasswordSchema = z.object({
+    email: z.string().email(),
+    otp: z.string().length(6),
+    newPassword: z.string().min(6),
+  });
+
+  // POST /reset-password
+  router.post('/reset-password', async (req, res, next) => {
+    try {
+      const { email, otp, newPassword } = resetPasswordSchema.parse(req.body);
+
+      const result = await pool.query(
+        'SELECT id, email, role, display_name, avatar_url, otp_code, otp_expires_at FROM accounts WHERE email = $1',
+        [email]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(400).json({ code: 'INVALID_OTP', message: 'Invalid or expired OTP.' });
+      }
+
+      const row = result.rows[0];
+
+      if (!row.otp_code || !row.otp_expires_at || new Date() > new Date(row.otp_expires_at)) {
+        return res.status(410).json({ code: 'OTP_EXPIRED', message: 'OTP has expired.' });
+      }
+
+      const isMatch = await bcrypt.compare(otp, row.otp_code);
+      if (!isMatch) {
+        return res.status(400).json({ code: 'INVALID_OTP', message: 'Invalid OTP.' });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash(newPassword, salt);
+
+      await pool.query(
+        'UPDATE accounts SET password_hash = $1, is_verified = TRUE, otp_code = NULL, otp_expires_at = NULL WHERE id = $2',
+        [hash, row.id]
+      );
+
+      const token = generateToken({ accountId: row.id, role: row.role, email: row.email }, jwtSecret);
+      res.cookie('bb_token', token, COOKIE_OPTIONS);
+
+      return res.json({
+        user: {
+          id: row.id,
+          email: row.email,
+          role: row.role,
+          displayName: row.display_name,
+          avatarUrl: row.avatar_url
+        },
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ code: 'VALIDATION_ERROR', errors: err.errors });
+      }
+      next(err);
+    }
+  });
+
   // POST /login
   router.post('/login', async (req, res, next) => {
     try {
