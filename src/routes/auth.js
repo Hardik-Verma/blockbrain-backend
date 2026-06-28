@@ -46,7 +46,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
     <body style="margin: 0; padding: 40px 20px; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-      <div style="max-width: 500px; margin: 0 auto; background-color: #09090b; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+      <div style="max-width: 500px; margin: 0 auto; background: linear-gradient(135deg, #020617 0%, #1e3a8a 100%); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
         
         <!-- Header -->
         <div style="padding: 30px 40px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05);">
@@ -391,17 +391,20 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
         return res.status(401).json({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' });
       }
 
-      const token = generateToken({ accountId: row.id, role: row.role, email: row.email }, jwtSecret);
-      res.cookie('bb_token', token, COOKIE_OPTIONS);
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const otpHash = await bcrypt.hash(otp, 5);
+      const expiresAt = new Date(Date.now() + 10 * 60000);
 
-      return res.json({
-        user: {
-          id: row.id,
-          email: row.email,
-          role: row.role,
-          displayName: row.display_name,
-          avatarUrl: row.avatar_url
-        },
+      await pool.query(
+        'UPDATE accounts SET otp_code = $1, otp_expires_at = $2 WHERE id = $3',
+        [otpHash, expiresAt, row.id]
+      );
+
+      sendEmail(email, 'BlockBrain Login Authentication', 'Login Authentication Request', otp, 'We received a request to log in to your BlockBrain account. Please use the secure code below to authenticate your session.');
+
+      return res.status(200).json({
+        code: 'OTP_SENT',
+        message: 'Login pending. Please verify the OTP sent to your email.',
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
