@@ -38,6 +38,49 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
     }
   }) : null;
 
+  // Helper function to send email bypassing SMTP blocks by using HTTP API if possible
+  const sendEmail = async (to, subject, text) => {
+    if (brevoApiKey) {
+      try {
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'api-key': brevoApiKey,
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            sender: { email: smtpUser || 'noreply@blockbrain.com', name: 'BlockBrain' },
+            to: [{ email: to }],
+            subject: subject,
+            textContent: text
+          })
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Brevo HTTP API failed: ${response.status} ${errText}`);
+        }
+        console.log('Successfully sent email via Brevo HTTP API to', to);
+        return;
+      } catch (err) {
+        console.error('Brevo API error:', err);
+      }
+    }
+    
+    // Fallback to Nodemailer (Gmail SMTP)
+    if (transporter) {
+      transporter.sendMail({
+        from: smtpUser,
+        to: to,
+        subject: subject,
+        text: text,
+      }).then(info => console.log('Successfully sent email via Gmail SMTP! MessageID:', info.messageId))
+        .catch(e => console.error('Failed to send email via SMTP:', e));
+    } else {
+      console.error('CRITICAL: Cannot send email because no email provider is configured.');
+    }
+  };
+
   // POST /register
   router.post('/register', async (req, res, next) => {
     try {
@@ -65,14 +108,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
         [email, hash, displayName || null, otpHash, expiresAt]
       );
 
-      if (transporter) {
-        transporter.sendMail({
-          from: smtpUser,
-          to: email,
-          subject: 'BlockBrain Verification Code',
-          text: `Your BlockBrain verification code is: ${otp}. It expires in 10 minutes.`,
-        }).catch(e => console.error('Failed to send OTP email:', e));
-      }
+      sendEmail(email, 'BlockBrain Verification Code', `Your BlockBrain verification code is: ${otp}. It expires in 10 minutes.`);
 
       return res.status(201).json({
         code: 'OTP_SENT',
@@ -176,17 +212,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
         [otpHash, expiresAt, email]
       );
 
-      if (transporter) {
-        transporter.sendMail({
-          from: smtpUser,
-          to: email,
-          subject: 'BlockBrain Password Reset',
-          text: `Your BlockBrain password reset code is: ${otp}. It expires in 10 minutes. If you did not request this, please ignore this email.`,
-        }).then(info => console.log('Successfully sent email to Google! MessageID:', info.messageId))
-          .catch(e => console.error('Failed to send forgot password email:', e));
-      } else {
-        console.error('CRITICAL: Cannot send email because SMTP_USER or SMTP_PASS is missing in environment variables.');
-      }
+      sendEmail(email, 'BlockBrain Password Reset', `Your BlockBrain password reset code is: ${otp}. It expires in 10 minutes. If you did not request this, please ignore this email.`);
 
       return res.status(200).json({
         code: 'OTP_SENT',
