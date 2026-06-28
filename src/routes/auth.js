@@ -38,8 +38,29 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
     }
   }) : null;
 
+  const getHtmlTemplate = (title, code, message) => `
+    <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0a; color: #ffffff; padding: 40px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="background: linear-gradient(to right, #ffffff, #888888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 28px; font-weight: 800; margin: 0;">BlockBrain</h1>
+      </div>
+      <div style="background-color: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 30px; text-align: center;">
+        <h2 style="font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 15px; color: #ffffff;">${title}</h2>
+        <p style="color: #a3a3a3; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">${message}</p>
+        <div style="background-color: rgba(0,0,0,0.5); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+          <span style="font-family: monospace; font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3b82f6;">${code}</span>
+        </div>
+        <p style="color: #666666; font-size: 12px; margin-top: 20px;">This code will expire in 10 minutes.</p>
+      </div>
+      <div style="text-align: center; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
+        <p style="color: #444444; font-size: 12px; margin: 0;">If you didn't request this email, you can safely ignore it.</p>
+        <p style="color: #444444; font-size: 12px; margin: 5px 0 0 0;">&copy; ${new Date().getFullYear()} BlockBrain. All rights reserved.</p>
+      </div>
+    </div>
+  `;
+
   // Helper function to send email bypassing SMTP blocks by using HTTP API if possible
-  const sendEmail = async (to, subject, text) => {
+  const sendEmail = async (to, subject, title, code, message) => {
+    const htmlContent = getHtmlTemplate(title, code, message);
     if (brevoApiKey) {
       try {
         const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -53,7 +74,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
             sender: { email: smtpUser || 'noreply@blockbrain.com', name: 'BlockBrain' },
             to: [{ email: to }],
             subject: subject,
-            textContent: text
+            htmlContent: htmlContent
           })
         });
         if (!response.ok) {
@@ -73,7 +94,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
         from: smtpUser,
         to: to,
         subject: subject,
-        text: text,
+        html: htmlContent,
       }).then(info => console.log('Successfully sent email via Gmail SMTP! MessageID:', info.messageId))
         .catch(e => console.error('Failed to send email via SMTP:', e));
     } else {
@@ -108,7 +129,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
         [email, hash, displayName || null, otpHash, expiresAt]
       );
 
-      sendEmail(email, 'BlockBrain Verification Code', `Your BlockBrain verification code is: ${otp}. It expires in 10 minutes.`);
+      sendEmail(email, 'BlockBrain Verification Code', 'Verify your email address', otp, 'Use the verification code below to verify your BlockBrain account.');
 
       return res.status(201).json({
         code: 'OTP_SENT',
@@ -141,7 +162,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
         [otpHash, expiresAt, email]
       );
 
-      sendEmail(email, 'BlockBrain Verification Code', `Your BlockBrain verification code is: ${otp}. It expires in 10 minutes.`);
+      sendEmail(email, 'BlockBrain Verification Code', 'Verify your email address', otp, 'Use the verification code below to verify your BlockBrain account.');
 
       return res.status(200).json({
         code: 'OTP_SENT',
@@ -245,7 +266,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
         [otpHash, expiresAt, email]
       );
 
-      sendEmail(email, 'BlockBrain Password Reset', `Your BlockBrain password reset code is: ${otp}. It expires in 10 minutes. If you did not request this, please ignore this email.`);
+      sendEmail(email, 'BlockBrain Password Reset', 'Password Reset Request', otp, 'Use the code below to reset your BlockBrain password.');
 
       return res.status(200).json({
         code: 'OTP_SENT',
@@ -440,6 +461,63 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
   router.post('/logout', (req, res) => {
     res.clearCookie('bb_token', COOKIE_OPTIONS);
     return res.json({ ok: true });
+  });
+
+  // POST /delete-account/request
+  router.post('/delete-account/request', authMiddleware, async (req, res, next) => {
+    try {
+      const { password } = z.object({ password: z.string() }).parse(req.body);
+      const email = req.user.email;
+      
+      const result = await pool.query('SELECT password_hash FROM accounts WHERE id = $1', [req.user.accountId]);
+      if (result.rows.length === 0) return res.status(404).json({ message: 'Account not found' });
+      
+      const isMatch = await bcrypt.compare(password, result.rows[0].password_hash);
+      if (!isMatch) return res.status(401).json({ code: 'INVALID_PASSWORD', message: 'Incorrect password.' });
+
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const otpHash = await bcrypt.hash(otp, 5);
+      const expiresAt = new Date(Date.now() + 10 * 60000);
+
+      await pool.query(
+        'UPDATE accounts SET otp_code = $1, otp_expires_at = $2 WHERE id = $3',
+        [otpHash, expiresAt, req.user.accountId]
+      );
+
+      sendEmail(email, 'BlockBrain Account Deletion', 'Account Deletion Request', otp, 'Use the code below to permanently delete your BlockBrain account. This action cannot be undone.');
+
+      return res.status(200).json({ code: 'OTP_SENT', message: 'Deletion OTP sent.' });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ errors: err.errors });
+      next(err);
+    }
+  });
+
+  // POST /delete-account/confirm
+  router.post('/delete-account/confirm', authMiddleware, async (req, res, next) => {
+    try {
+      const { otp } = z.object({ otp: z.string().length(6) }).parse(req.body);
+      
+      const result = await pool.query('SELECT otp_code, otp_expires_at FROM accounts WHERE id = $1', [req.user.accountId]);
+      if (result.rows.length === 0) return res.status(404).json({ message: 'Account not found' });
+      
+      const row = result.rows[0];
+      if (!row.otp_code || !row.otp_expires_at || new Date() > new Date(row.otp_expires_at)) {
+        return res.status(410).json({ code: 'OTP_EXPIRED', message: 'OTP has expired.' });
+      }
+
+      const isMatch = await bcrypt.compare(otp, row.otp_code);
+      if (!isMatch) return res.status(400).json({ code: 'INVALID_OTP', message: 'Invalid OTP.' });
+
+      // Wipe everything
+      await pool.query('DELETE FROM accounts WHERE id = $1', [req.user.accountId]);
+
+      res.clearCookie('bb_token', COOKIE_OPTIONS);
+      return res.status(200).json({ success: true, message: 'Account deleted.' });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ errors: err.errors });
+      next(err);
+    }
   });
 
   return router;
