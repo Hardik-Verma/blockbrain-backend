@@ -172,7 +172,8 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
           to: email,
           subject: 'BlockBrain Password Reset',
           text: `Your BlockBrain password reset code is: ${otp}. It expires in 10 minutes. If you did not request this, please ignore this email.`,
-        }).catch(e => console.error('Failed to send forgot password email:', e));
+        }).then(info => console.log('Successfully sent email to Google! MessageID:', info.messageId))
+          .catch(e => console.error('Failed to send forgot password email:', e));
       } else {
         console.error('CRITICAL: Cannot send email because SMTP_USER or SMTP_PASS is missing in environment variables.');
       }
