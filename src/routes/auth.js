@@ -142,6 +142,16 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
     }
   });
 
+  // GET /debug-email
+  router.get('/debug-email', (req, res) => {
+    res.json({
+      smtpUserConfigured: !!smtpUser,
+      smtpUserValue: smtpUser || 'MISSING',
+      smtpPassConfigured: !!smtpPass,
+      hasTransporter: !!transporter
+    });
+  });
+
   const forgotPasswordSchema = z.object({
     email: z.string().email().transform(e => e.toLowerCase()),
   });
