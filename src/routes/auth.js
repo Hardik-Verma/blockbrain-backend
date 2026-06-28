@@ -16,12 +16,12 @@ const COOKIE_OPTIONS = {
 };
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(e => e.toLowerCase()),
   password: z.string().min(6),
 });
 
 const registerSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(e => e.toLowerCase()),
   password: z.string().min(6),
   displayName: z.string().min(1).max(64).optional(),
 });
@@ -87,7 +87,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
   });
 
   const verifySchema = z.object({
-    email: z.string().email(),
+    email: z.string().email().transform(e => e.toLowerCase()),
     otp: z.string().length(6),
   });
 
@@ -143,7 +143,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
   });
 
   const forgotPasswordSchema = z.object({
-    email: z.string().email(),
+    email: z.string().email().transform(e => e.toLowerCase()),
   });
 
   // POST /forgot-password
@@ -190,7 +190,7 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
   });
 
   const resetPasswordSchema = z.object({
-    email: z.string().email(),
+    email: z.string().email().transform(e => e.toLowerCase()),
     otp: z.string().length(6),
     newPassword: z.string().min(6),
   });

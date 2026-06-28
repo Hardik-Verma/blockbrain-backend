@@ -7,8 +7,9 @@ const pool = new pg.Pool({
 
 async function run() {
     try {
-        await pool.query("ALTER TABLE accounts ALTER COLUMN otp_code TYPE VARCHAR(255);");
-        console.log("Database schema updated successfully! otp_code is now VARCHAR(255)");
+        const res = await pool.query("SELECT email FROM accounts");
+        console.log("Registered Emails:");
+        console.log(res.rows.map(r => r.email));
     } catch (e) {
         console.error(e);
     } finally {
