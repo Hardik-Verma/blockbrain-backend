@@ -66,16 +66,12 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
       );
 
       if (transporter) {
-        try {
-          await transporter.sendMail({
-            from: smtpUser,
-            to: email,
-            subject: 'BlockBrain Verification Code',
-            text: `Your BlockBrain verification code is: ${otp}. It expires in 10 minutes.`,
-          });
-        } catch (e) {
-          console.error('Failed to send OTP email:', e);
-        }
+        transporter.sendMail({
+          from: smtpUser,
+          to: email,
+          subject: 'BlockBrain Verification Code',
+          text: `Your BlockBrain verification code is: ${otp}. It expires in 10 minutes.`,
+        }).catch(e => console.error('Failed to send OTP email:', e));
       }
 
       return res.status(201).json({
@@ -171,16 +167,12 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
       );
 
       if (transporter) {
-        try {
-          await transporter.sendMail({
-            from: smtpUser,
-            to: email,
-            subject: 'BlockBrain Password Reset',
-            text: `Your BlockBrain password reset code is: ${otp}. It expires in 10 minutes. If you did not request this, please ignore this email.`,
-          });
-        } catch (e) {
-          console.error('Failed to send forgot password email:', e);
-        }
+        transporter.sendMail({
+          from: smtpUser,
+          to: email,
+          subject: 'BlockBrain Password Reset',
+          text: `Your BlockBrain password reset code is: ${otp}. It expires in 10 minutes. If you did not request this, please ignore this email.`,
+        }).catch(e => console.error('Failed to send forgot password email:', e));
       }
 
       return res.status(200).json({
