@@ -122,6 +122,39 @@ export function createAuthRouter({ jwtSecret, smtpUser, smtpPass, brevoApiKey })
     }
   });
 
+  // POST /resend-otp
+  router.post('/resend-otp', async (req, res, next) => {
+    try {
+      const { email } = z.object({ email: z.string().email().transform(e => e.toLowerCase()) }).parse(req.body);
+
+      const existing = await pool.query('SELECT id, is_verified FROM accounts WHERE email = $1', [email]);
+      if (existing.rows.length === 0 || existing.rows[0].is_verified) {
+        return res.status(400).json({ code: 'INVALID_REQUEST', message: 'Account not found or already verified.' });
+      }
+
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const otpHash = await bcrypt.hash(otp, 5);
+      const expiresAt = new Date(Date.now() + 10 * 60000);
+
+      await pool.query(
+        'UPDATE accounts SET otp_code = $1, otp_expires_at = $2 WHERE email = $3',
+        [otpHash, expiresAt, email]
+      );
+
+      sendEmail(email, 'BlockBrain Verification Code', `Your BlockBrain verification code is: ${otp}. It expires in 10 minutes.`);
+
+      return res.status(200).json({
+        code: 'OTP_SENT',
+        message: 'A new verification code has been sent.',
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ code: 'VALIDATION_ERROR', errors: err.errors });
+      }
+      next(err);
+    }
+  });
+
   const verifySchema = z.object({
     email: z.string().email().transform(e => e.toLowerCase()),
     otp: z.string().length(6),
