@@ -37,7 +37,16 @@ export function createChatRouter({ providerService, usageService, authMiddleware
         const decoded = verifyToken(token, process.env.JWT_SECRET || 'dev-secret-change-in-production');
         req.user = { accountId: decoded.accountId, role: decoded.role, email: decoded.email };
       } catch {
-        // Invalid token - proceed as unauthenticated
+        // Invalid JWT - try fallback as raw account UUID (Custom API Key)
+        try {
+          const result = await pool.query('SELECT id, email, role FROM accounts WHERE id = $1', [token]);
+          if (result.rows.length > 0) {
+            const account = result.rows[0];
+            req.user = { accountId: account.id, role: account.role, email: account.email };
+          }
+        } catch (dbErr) {
+          // Invalid UUID or DB error - proceed as unauthenticated
+        }
       }
     }
     next();

@@ -9,7 +9,7 @@ export function createDashboardRouter() {
     try {
       const statsResult = await pool.query(
         `SELECT
-           COUNT(DISTINCT session_id) as total_sessions,
+           COUNT(*) as total_sessions,
            COALESCE(SUM(tokens_used), 0) as total_tokens,
            COALESCE(ROUND(AVG(latency_ms)), 0) as avg_latency,
            CASE WHEN COUNT(*) > 0
@@ -51,7 +51,7 @@ export function createDashboardRouter() {
       const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
 
       const result = await pool.query(
-        `SELECT id, prompt_preview, tokens_used, latency_ms, status, error_message, context_snapshot, created_at
+        `SELECT id, prompt_preview, tokens_used, latency_ms, status, error_message, NULL as context_snapshot, created_at
          FROM request_logs
          WHERE account_id = $1 AND ($2::timestamptz IS NULL OR created_at < $2)
          ORDER BY created_at DESC
