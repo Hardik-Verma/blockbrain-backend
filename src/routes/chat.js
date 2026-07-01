@@ -30,8 +30,9 @@ export function createChatRouter({ providerService, usageService, authMiddleware
 
   // Try to authenticate but don't block unauthenticated requests
   const optionalAuth = async (req, _res, next) => {
-    const token = req.cookies?.bb_token || req.headers['x-blockbrain-passcode'];
+    let token = req.cookies?.bb_token || req.headers['x-blockbrain-passcode'];
     if (token) {
+      token = token.trim();
       // Try JWT validation
       try {
         const decoded = verifyToken(token, process.env.JWT_SECRET || 'dev-secret-change-in-production');
