@@ -150,6 +150,26 @@ export function createChatRouter({ providerService, usageService, authMiddleware
     }
   });
 
+  // POST /chat/sync — Sync context snapshot for Custom API Mode
+  router.post("/sync", optionalAuth, async (req, res, next) => {
+    try {
+      const { context_snapshot } = req.body;
+      if (!context_snapshot) {
+        return res.status(400).json({ error: 'context_snapshot is required' });
+      }
+
+      await pool.query(
+        `INSERT INTO request_logs (client_id, account_id, prompt_preview, tokens_used, latency_ms, status, context_snapshot)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [req.headers['x-blockbrain-player-uuid'] || 'unknown', req.user?.accountId || null, 'Live Context Sync', 0, 0, 'sync', context_snapshot]
+      );
+
+      return res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }
 

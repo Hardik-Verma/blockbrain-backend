@@ -71,25 +71,5 @@ export function createDashboardRouter() {
     }
   });
 
-  // POST /sync — Sync context snapshot without an AI generation request (for Custom API Keys)
-  router.post('/sync', async (req, res, next) => {
-    try {
-      const { context_snapshot } = req.body;
-      if (!context_snapshot) {
-        return res.status(400).json({ error: 'context_snapshot is required' });
-      }
-
-      await pool.query(
-        `INSERT INTO request_logs (account_id, prompt_preview, tokens_used, latency_ms, status, context_snapshot)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [req.user.accountId, 'Live Context Sync', 0, 0, 'sync', context_snapshot]
-      );
-
-      return res.json({ success: true });
-    } catch (err) {
-      next(err);
-    }
-  });
-
   return router;
 }
