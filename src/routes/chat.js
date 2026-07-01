@@ -63,7 +63,11 @@ export function createChatRouter({ providerService, usageService, authMiddleware
     try {
       const body = chatSchema.parse(req.body);
       const clientId = req.headers['x-blockbrain-player-uuid'] || 'unknown';
-      const prompt = body.message;
+      const prompt = body.prompt || body.message; // fallback for older clients
+      
+      if (body.minecraftContext && req.headers['x-blockbrain-player-uuid']) {
+        body.minecraftContext.playerUuid = req.headers['x-blockbrain-player-uuid'];
+      }
 
       if (prompt.trim().toLowerCase().includes("blockbrain cloud is loading")) {
         return res.json({ response: "", remainingFreeRequests: 999 });
