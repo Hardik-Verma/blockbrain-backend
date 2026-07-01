@@ -111,7 +111,8 @@ export function createChatRouter({ providerService, usageService, authMiddleware
 
       let freeTier = { allowed: true, remaining: 999 };
       if (!isDev) {
-        freeTier = await usageService.consumeIfAvailable(clientId, 3);
+        const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
+        freeTier = await usageService.consumeIfAvailable(clientIp, 3);
         if (!freeTier.allowed) {
           return res.status(402).json({
             code: "FREE_LIMIT_REACHED",
