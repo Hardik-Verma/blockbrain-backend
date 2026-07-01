@@ -40,12 +40,17 @@ export function createChatRouter({ providerService, usageService, authMiddleware
       } catch {
         // Invalid JWT - try fallback as raw account UUID (Custom API Key)
         try {
-          const result = await pool.query('SELECT id, email, role FROM accounts WHERE id = $1', [token]);
+          let uuidToken = token;
+          if (uuidToken.length === 32 && !uuidToken.includes('-')) {
+            uuidToken = `${uuidToken.slice(0, 8)}-${uuidToken.slice(8, 12)}-${uuidToken.slice(12, 16)}-${uuidToken.slice(16, 20)}-${uuidToken.slice(20)}`;
+          }
+          const result = await pool.query('SELECT id, email, role FROM accounts WHERE id = $1', [uuidToken]);
           if (result.rows.length > 0) {
             const account = result.rows[0];
             req.user = { accountId: account.id, role: account.role, email: account.email };
           }
         } catch (dbErr) {
+          console.error('optionalAuth UUID DB error:', dbErr.message);
           // Invalid UUID or DB error - proceed as unauthenticated
         }
       }
